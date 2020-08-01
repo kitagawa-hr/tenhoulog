@@ -17,6 +17,7 @@ class GameResult(BaseModel):
     """
 
     lobby: str  # 個室ID
+    playernum: int  # 対戦人数(3 or 4)
     player1: str  # 1位のプレイヤーの名前
     player1ptr: float  # 1位のプレイヤーの得点
     player1shuugi: Optional[int]  # 1位のプレイヤーの祝儀
@@ -26,10 +27,13 @@ class GameResult(BaseModel):
     player3: str
     player3ptr: float
     player3shuugi: Optional[int]
+    player4: Optional[str]
+    player4ptr: Optional[float]
+    player4shuugi: Optional[int]
     starttime: datetime  # 開始時刻(UTC)
 
     def to_records(self) -> List["Record"]:
-        rank_to_attrs = [(1, "player1"), (2, "player2"), (3, "player3")]
+        rank_to_attrs = [(rank, f"player{rank}") for rank in range(1, self.playernum + 1)]
         return [
             Record(
                 player_name=getattr(self, attr),
@@ -92,14 +96,14 @@ class ResultBook:
             self._filter_df_by_period(self.tips, time_period),
         )
 
-    def aggregate(self) -> pd.DataFrame:
+    def aggregate(self, player_num: int) -> pd.DataFrame:
         """集計結果をテーブルオブジェクトとして返す"""
         rows = []
         for player in self.player_names:
             score_sum = self.scores[player].sum()
             times = self.scores[player].notnull().sum()
             rank_counts = self.ranks[player].value_counts().to_dict()
-            ranks = [rank_counts.get(rank, 0) for rank in (1, 2, 3)]
+            ranks = [rank_counts.get(rank, 0) for rank in range(1, player_num + 1)]
             rank_avg = self.ranks[player].mean()
             tip = int(self.tips[player].sum())
             rows.append([player, times, score_sum, "-".join(map(str, ranks)), rank_avg, tip])
