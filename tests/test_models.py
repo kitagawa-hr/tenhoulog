@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
+from os import execlp
 
 import pytest
 import pandas as pd
@@ -208,8 +209,38 @@ def test_game_result_to_records_4(game_results_4):
         ]
 
 
-def test_results2book(game_results_3, player_names):
-    book = models.results2book(game_results_3, player_names, JST)
+@pytest.mark.parametrize(
+    "log_str,game_result",
+    [
+        (
+            "L1000 | 00:30 | 四般南喰赤－ | A(+45.0) B(+9.0) C(-20.0) D(-34.0)",
+            models.GameResult(
+                lobby="L1000",
+                playernum=4,
+                player1="A",
+                player1ptr=45.0,
+                player1shuugi=None,
+                player2="B",
+                player2ptr=9.0,
+                player2shuugi=None,
+                player3="C",
+                player3ptr=-20.0,
+                player3shuugi=None,
+                player4="D",
+                player4ptr=-34.0,
+                player4shuugi=None,
+                starttime=datetime(2020, 1, 1, 0, 30),
+            ),
+        )
+    ],
+)
+def test_game_result_from_str(log_str, game_result):
+    actual = models.GameResult.from_str(log_str, date(2020, 1, 1))
+    assert actual == game_result
+
+
+def test_book_from_results(game_results_3, player_names):
+    book = models.ResultBook.from_results(game_results_3, player_names, JST)
     scores = pd.DataFrame(
         [
             [100, -88.2, -11.8, None, None, None, datetime(1978, 11, 22, tzinfo=JST),],
@@ -221,3 +252,52 @@ def test_results2book(game_results_3, player_names):
     )
     pd.testing.assert_frame_equal(scores, book.scores, check_dtype=False)
 
+
+@pytest.mark.parametrize(
+    "record_str,name,point,tip",
+    [
+        ("A(+45.0)", "A", 45.0, None),
+        ("A(0.0)", "A", 0, None),
+        ("A(+45.0,+3枚)", "A", 45.0, 3),
+        ("A(+45.0,0枚)", "A", 45.0, 0),
+        ("あいうえお(+45.0,+21枚)", "あいうえお", 45.0, 21),
+        ("hoge(+1945.8,-20枚)", "hoge", 1945.8, -20),
+    ],
+)
+def test_parse_record_str(record_str, name, point, tip):
+    assert models.Record._parse_record_str(record_str) == {"name": name, "point": point, "tip": tip}
+
+
+@pytest.mark.parametrize(
+    "records_str,records",
+    [
+        (
+            "A(+45.0) B(+9.0) C(-20.0) D(-34.0)",
+            [
+                models.Record(player_name="A", point=45.0, tip=None, rank=1),
+                models.Record(player_name="B", point=9.0, tip=None, rank=2),
+                models.Record(player_name="C", point=-20.0, tip=None, rank=3),
+                models.Record(player_name="D", point=-34.0, tip=None, rank=4),
+            ],
+        ),
+        (
+            "B(+9.0) A(+45.0) D(-34.0) C(-20.0)",
+            [
+                models.Record(player_name="A", point=45.0, tip=None, rank=1),
+                models.Record(player_name="B", point=9.0, tip=None, rank=2),
+                models.Record(player_name="C", point=-20.0, tip=None, rank=3),
+                models.Record(player_name="D", point=-34.0, tip=None, rank=4),
+            ],
+        ),
+        (
+            "A(+64.0,+3枚) B(-8.0,-1枚) C(-56.0,-2枚)",
+            [
+                models.Record(player_name="A", point=64.0, tip=3, rank=1),
+                models.Record(player_name="B", point=-8.0, tip=-1, rank=2),
+                models.Record(player_name="C", point=-56.0, tip=-2, rank=3),
+            ],
+        ),
+    ],
+)
+def test_from_str(records_str, records):
+    assert models.Record.parse_str(records_str) == records

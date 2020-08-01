@@ -1,6 +1,7 @@
+import re
 from dataclasses import dataclass
-from datetime import datetime, tzinfo
-from typing import List, Set, Tuple, Optional
+from datetime import datetime, tzinfo, date
+from typing import Any, Dict, List, Set, Tuple, Optional
 
 import japanize_matplotlib  # noqa
 import pandas as pd
@@ -13,7 +14,6 @@ class GameResult(BaseModel):
     """1試合の結果
 
     nodocchi.moeのAPI形式に準拠
-    datetimeはUTCとなっているので注意
     """
 
     lobby: str  # 個室ID
@@ -30,7 +30,7 @@ class GameResult(BaseModel):
     player4: Optional[str]
     player4ptr: Optional[float]
     player4shuugi: Optional[int]
-    starttime: datetime  # 開始時刻(UTC)
+    starttime: datetime  # 開始時刻
 
     def to_records(self) -> List["Record"]:
         rank_to_attrs = [(rank, f"player{rank}") for rank in range(1, self.playernum + 1)]
@@ -43,6 +43,35 @@ class GameResult(BaseModel):
             )
             for (rank, attr) in rank_to_attrs
         ]
+
+    @classmethod
+    def from_str(cls, log_oneline: str, date: date) -> "GameResult":
+        """天鳳公式の文字列形式の1行分をパース
+
+        文字列形式の例:
+            L1000 | 00:30 | 四般南喰赤－ | A(+45.0) B(+9.0) C(-20.0) D(-34.0)
+            C1000 | 00:50 | 三般南喰赤祝 | A(+64.0,+3枚) B(-8.0,-1枚) C(-56.0,-2枚)
+        """
+        data: Dict[str, Any] = {}
+        lobby_id, starttime, rule, records_str = log_oneline.split("|")
+        data["lobby"] = lobby_id.strip()
+        h, m = starttime.split(":")
+        data["starttime"] = datetime(date.year, date.month, date.day, int(h), int(m))
+        if rule.strip().startswith("四"):
+            data["playernum"] = 4
+        else:
+            data["playernum"] = 3
+        records = Record.parse_str(records_str.strip())
+        for record in records:
+            data[f"player{record.rank}"] = record.player_name
+            data[f"player{record.rank}ptr"] = record.point
+            data[f"player{record.rank}shuugi"] = record.tip
+        return cls(**data)
+
+    @classmethod
+    def parse_str(cls, log_str: str, date: date) -> List["GameResult"]:
+        """天鳳公式の文字列形式の複数行をパース"""
+        return [cls.from_str(log_oneline, date) for log_oneline in log_str.split("\n") if log_oneline]
 
 
 class APIResponse(BaseModel):
@@ -60,6 +89,37 @@ class Record(BaseModel):
     point: float  # 得点
     tip: Optional[int]  # 祝儀
     rank: int  # 順位
+
+    @staticmethod
+    def _parse_record_str(record_str: str) -> Dict[str, Any]:
+        """
+        Examples:
+            >>> parse_record_str("A(+45.0)")
+            {"name": "A", "point": 45.0, "tip": None}
+            >>> parse_record_str("A(+45.0,+3枚)")
+            {"name": "A", "point": 45.0, "tip": 3}
+        """
+        regex = re.compile(r"(?P<name>[^\s\(\)]+)\((?P<scores>[\d\+\-\.,]+).*\)")
+        m = regex.match(record_str)
+        if m is None:
+            raise ValueError(f"Invalid record_str format: {record_str}")
+        score, *tail = m["scores"].split(",")
+        tip = int(tail[0]) if tail else None
+        return {"name": m["name"], "point": float(score), "tip": tip}
+
+    @classmethod
+    def parse_str(cls, records_str: str) -> List["Record"]:
+        """天鳳公式の文字列形式をパース
+        Examples:
+            >>> from_str("A(+45.0) B(+9.0) C(-20.0) D(-34.0)")
+            [Record("A", 45.0, None, 1), Record("B", 9.0, None, 2), Record("C", -20.0, None, 3), Record("D", -40.0, None, 4)]
+            >>> from_str("A(+64.0,+3枚) B(-8.0,-1枚) C(-56.0,-2枚)")
+            [Record("A", 64.0, 3, 1), Record("B", -8.0, -1, 2), Record("C", -56.0, -2, 3)]
+        """
+        ds = sorted(
+            [cls._parse_record_str(record_str) for record_str in records_str.split(" ")], key=lambda x: -x["point"]
+        )
+        return [Record(player_name=d["name"], point=d["point"], tip=d["tip"], rank=i + 1) for (i, d) in enumerate(ds)]
 
 
 @dataclass
@@ -123,28 +183,28 @@ class ResultBook:
         ax.legend(loc="upper left")
         return fig
 
+    @classmethod
+    def from_results(cls, results: List["GameResult"], player_names: List[str], tz: tzinfo) -> "ResultBook":
+        """試合結果をDataFrameに変換
 
-def results2book(results: List[GameResult], player_names: List[str], tz: tzinfo) -> ResultBook:
-    """試合結果をDataFrameに変換
-
-    player_namesで指定したプレイヤーの結果だけが対象
-    (scoreを表すdf, rankを表すdf)を返す
-    """
-    scores = []
-    ranks = []
-    tips = []
-    columns = player_names + ["starttime"]
-    for result in results:
-        starttime = result.starttime.astimezone(tz)
-        records = result.to_records()
-        score = dict({record.player_name: record.point for record in records}, starttime=starttime)
-        rank = dict({record.player_name: record.rank for record in records}, starttime=starttime)
-        tip = dict({record.player_name: record.tip for record in records}, starttime=starttime)
-        scores.append(score)
-        ranks.append(rank)
-        tips.append(tip)
-    return ResultBook(
-        pd.DataFrame(scores, columns=columns),
-        pd.DataFrame(ranks, columns=columns),
-        pd.DataFrame(tips, columns=columns),
-    )
+        player_namesで指定したプレイヤーの結果だけが対象
+        (scoreを表すdf, rankを表すdf)を返す
+        """
+        scores = []
+        ranks = []
+        tips = []
+        columns = player_names + ["starttime"]
+        for result in results:
+            starttime = result.starttime.astimezone(tz)
+            records = result.to_records()
+            score = dict({record.player_name: record.point for record in records}, starttime=starttime)
+            rank = dict({record.player_name: record.rank for record in records}, starttime=starttime)
+            tip = dict({record.player_name: record.tip for record in records}, starttime=starttime)
+            scores.append(score)
+            ranks.append(rank)
+            tips.append(tip)
+        return ResultBook(
+            pd.DataFrame(scores, columns=columns),
+            pd.DataFrame(ranks, columns=columns),
+            pd.DataFrame(tips, columns=columns),
+        )
