@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone, date
-from os import execlp
 
 import pytest
 import pandas as pd
@@ -124,7 +123,7 @@ def game_results_4():
             "player1shuugi": 10,
             "player2": "黒服B",
             "player2ptr": 3.5,
-            "player3shuugi": 0,
+            "player2shuugi": 0,
             "player3": "黒服A",
             "player3ptr": -8.3,
             "player3shuugi": -2,
