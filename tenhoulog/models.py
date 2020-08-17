@@ -73,6 +73,9 @@ class GameResult(BaseModel):
         """天鳳公式の文字列形式の複数行をパース"""
         return [cls.from_str(log_oneline, date) for log_oneline in log_str.split("\n") if log_oneline]
 
+    def player_names(self) -> List[str]:
+        return [getattr(self, f"player{i}") for i in range(1, self.playernum + 1)]
+
 
 class APIResponse(BaseModel):
     """nodocchi.moeのAPIレスポンス"""
@@ -112,7 +115,12 @@ class Record(BaseModel):
         """天鳳公式の文字列形式をパース
         Examples:
             >>> from_str("A(+45.0) B(+9.0) C(-20.0) D(-34.0)")
-            [Record("A", 45.0, None, 1), Record("B", 9.0, None, 2), Record("C", -20.0, None, 3), Record("D", -40.0, None, 4)]
+            [
+                Record("A", 45.0, None, 1),
+                Record("B", 9.0, None, 2),
+                Record("C", -20.0, None, 3),
+                Record("D", -40.0, None, 4)
+            ]
             >>> from_str("A(+64.0,+3枚) B(-8.0,-1枚) C(-56.0,-2枚)")
             [Record("A", 64.0, 3, 1), Record("B", -8.0, -1, 2), Record("C", -56.0, -2, 3)]
         """
@@ -157,7 +165,7 @@ class ResultBook:
         )
 
     def aggregate(self, player_num: int) -> pd.DataFrame:
-        """集計結果をテーブルオブジェクトとして返す"""
+        """集計を行う"""
         rows = []
         for player in self.player_names:
             score_sum = self.scores[player].sum()
