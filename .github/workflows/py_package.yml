@@ -47,11 +47,11 @@ jobs:
 
     - name: Lint with flake8
       run: |
-        poetry run flake8 dx tests
+        poetry run flake8 tenhoulog tests
 
     - name: mypy typecheck
       run: |
-        poetry run mypy dx
+        poetry run mypy tenhoulog
 
     - name: Test with pytest
       run: |
