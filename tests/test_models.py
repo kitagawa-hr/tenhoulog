@@ -239,13 +239,13 @@ def test_game_result_from_str(log_str, game_result):
 
 
 def test_book_from_results(game_results_3, player_names):
-    book = models.ResultBook.from_results(game_results_3, player_names, JST)
+    book = models.ResultBook.from_results(game_results_3, player_names)
     scores = pd.DataFrame(
         [
-            [100, -88.2, -11.8, None, None, None, datetime(1978, 11, 22, tzinfo=JST),],
-            [290.4, None, None, -160.4, None, -130, datetime(1978, 11, 23, tzinfo=JST),],
-            [None, 380.0, None, -220.0, -160.0, None, datetime(1978, 11, 23, tzinfo=JST),],
-            [None, None, 45.6, 0.0, -45.6, None, datetime(1978, 11, 24, tzinfo=JST),],
+            [100, -88.2, -11.8, None, None, None, datetime(1978, 11, 22),],
+            [290.4, None, None, -160.4, None, -130, datetime(1978, 11, 23),],
+            [None, 380.0, None, -220.0, -160.0, None, datetime(1978, 11, 23),],
+            [None, None, 45.6, 0.0, -45.6, None, datetime(1978, 11, 24),],
         ],
         columns=player_names + ["starttime"],
     )
@@ -300,3 +300,4 @@ def test_parse_record_str(record_str, name, point, tip):
 )
 def test_from_str(records_str, records):
     assert models.Record.parse_str(records_str) == records
+

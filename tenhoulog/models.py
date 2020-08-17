@@ -16,7 +16,7 @@ class GameResult(BaseModel):
     nodocchi.moeのAPI形式に準拠
     """
 
-    lobby: str  # 個室ID
+    lobby: Optional[str]  # 個室ID
     playernum: int  # 対戦人数(3 or 4)
     player1: str  # 1位のプレイヤーの名前
     player1ptr: float  # 1位のプレイヤーの得点
@@ -80,8 +80,8 @@ class GameResult(BaseModel):
 class APIResponse(BaseModel):
     """nodocchi.moeのAPIレスポンス"""
 
-    earliest: datetime  # 最も古い対戦の開戦時刻(UTC)
-    lobby: str  # 個室ID
+    earliest: Optional[datetime]  # 最も古い対戦の開戦時刻(UTC)
+    lobby: Optional[str]  # 個室ID
     list: List[GameResult]
 
 
@@ -192,7 +192,7 @@ class ResultBook:
         return fig
 
     @classmethod
-    def from_results(cls, results: List["GameResult"], player_names: List[str], tz: tzinfo) -> "ResultBook":
+    def from_results(cls, results: List["GameResult"], player_names: List[str]) -> "ResultBook":
         """試合結果をDataFrameに変換
 
         player_namesで指定したプレイヤーの結果だけが対象
@@ -202,12 +202,14 @@ class ResultBook:
         ranks = []
         tips = []
         columns = player_names + ["starttime"]
+        players = set(player_names)
         for result in results:
-            starttime = result.starttime.astimezone(tz)
+            if not (players & set(result.player_names())):
+                continue
             records = result.to_records()
-            score = dict({record.player_name: record.point for record in records}, starttime=starttime)
-            rank = dict({record.player_name: record.rank for record in records}, starttime=starttime)
-            tip = dict({record.player_name: record.tip for record in records}, starttime=starttime)
+            score = dict({record.player_name: record.point for record in records}, starttime=result.starttime)
+            rank = dict({record.player_name: record.rank for record in records}, starttime=result.starttime)
+            tip = dict({record.player_name: record.tip for record in records}, starttime=result.starttime)
             scores.append(score)
             ranks.append(rank)
             tips.append(tip)
