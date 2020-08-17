@@ -1,6 +1,6 @@
 import re
 from dataclasses import dataclass
-from datetime import datetime, tzinfo, date
+from datetime import datetime, date
 from typing import Any, Dict, List, Set, Tuple, Optional
 
 import japanize_matplotlib  # noqa

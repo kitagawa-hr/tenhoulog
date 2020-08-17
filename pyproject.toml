@@ -1,8 +1,11 @@
 [tool.poetry]
 name = "tenhoulog"
 version = "0.1.0"
-description = ""
-authors = ["kitagawa-hr <kitagawa@cancerscan.jp>"]
+description = "utils for tenhou log"
+authors = ["kitagawa-hr <kitagawahr@gmail.com>"]
+readme = "README.md"
+homepage = "https://github.com/kitagawa-hr/tenhoulog"
+repository = "https://github.com/kitagawa-hr/tenhoulog"
 
 [tool.poetry.dependencies]
 python = "^3.7"

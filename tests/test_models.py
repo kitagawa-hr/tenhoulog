@@ -300,4 +300,3 @@ def test_parse_record_str(record_str, name, point, tip):
 )
 def test_from_str(records_str, records):
     assert models.Record.parse_str(records_str) == records
-
